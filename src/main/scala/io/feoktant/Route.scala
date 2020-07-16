@@ -19,7 +19,7 @@ trait Route extends FailFastCirceSupport {
     AkkaRoute.seal(
       path("non-cached") {
         get {
-          complete(service.computeMeaningOfLife)
+          complete(service.computeTheAnswerOfLife)
         }
       } ~
       path("cached") {
