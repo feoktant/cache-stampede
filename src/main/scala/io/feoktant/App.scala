@@ -13,7 +13,7 @@ object App extends App with Route {
   implicit val ec: ExecutionContext = system.dispatcher
 
   val redisClient = Redis()
-  override val service = new DeepThought(redisClient)
+  override val service = new DeepThought(redisClient, system)
 
   for {
     _ <- Http().bindAndHandle(route, "0.0.0.0", 8080)

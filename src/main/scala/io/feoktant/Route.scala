@@ -31,6 +31,11 @@ trait Route extends FailFastCirceSupport {
         get {
           complete(service.cachedXFetchedTheAnswerOfLife)
         }
+      } ~
+      path("akka-blocking") {
+        get {
+          complete(service.recomputeBlockingAkka)
+        }
       }
     )
 
