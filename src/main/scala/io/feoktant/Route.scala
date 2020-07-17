@@ -24,7 +24,12 @@ trait Route extends FailFastCirceSupport {
       } ~
       path("cached") {
         get {
-          complete(service.cachedMeaningOfLife)
+          complete(service.cachedTheAnswerOfLife)
+        }
+      } ~
+      path("xfetched-cached") {
+        get {
+          complete(service.cachedXFetchedTheAnswerOfLife)
         }
       }
     )

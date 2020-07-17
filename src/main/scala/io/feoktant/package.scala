@@ -10,8 +10,8 @@ package object feoktant {
       UTF8StringWriter.write(s"${t._1}:${t._2}")
 
     override protected def readImpl(bytes: Array[Byte]): (Int, Long) = {
-      val t = scredis.serialization.UTF8StringReader.read(bytes).partition(_ == ':')
-      (t._1.toInt, t._2.toLong)
+      val t = scredis.serialization.UTF8StringReader.read(bytes).split(':')
+      (t(0).toInt, t(1).toLong)
     }
   }
 }

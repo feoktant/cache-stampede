@@ -1,8 +1,8 @@
 package io.feoktant
 
 import org.slf4j.{Logger, LoggerFactory}
+import scredis.serialization.{IntReader, Reader, Writer}
 import scredis.Redis
-import scredis.serialization.{Reader, Writer}
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
@@ -11,8 +11,8 @@ import scala.util.Random
 class LongRunningService(redis: Redis)(implicit val ec: ExecutionContext) {
 
   private val log: Logger = LoggerFactory.getLogger(classOf[LongRunningService])
-
   private val random = Random
+  private val ttl = 20.seconds
 
   /** @return The Answer to the Ultimate Question of Life, the Universe, and Everything */
   def computeTheAnswerOfLife: Future[Int] =
@@ -21,8 +21,37 @@ class LongRunningService(redis: Redis)(implicit val ec: ExecutionContext) {
       42
     }
 
-  def cachedMeaningOfLife: Future[Int] =
-    xFetch("meaning_of_Life", 10.seconds) {
+  def cachedTheAnswerOfLife: Future[Int] = {
+    implicit val intReader: IntReader.type = IntReader
+    naiveCache("naive:the_answer_of_life", ttl) {
+      computeTheAnswerOfLife
+    }
+  }
+
+  private def naiveCache[T](key: String, ttl: FiniteDuration)
+                           (recomputeValue: => Future[T])
+                           (implicit
+                            reader: Reader[T],
+                            writer: Writer[T]): Future[T] = {
+    for {
+      cached <- redis.get[T](key)
+      value  <- cached match {
+        case Some(v) =>
+          log.debug("Cached key {}", key)
+          Future.successful(v)
+
+        case None    =>
+          log.warn("Cache miss for key {}", key)
+          for {
+            value <- recomputeValue
+            _     <- redis.pSetEX(key, value, ttl.toMillis)
+          } yield value
+      }
+    } yield value
+  }
+
+  def cachedXFetchedTheAnswerOfLife: Future[Int] =
+    xFetch("xfetch:the_answer_of_life", ttl, beta = 0.5) {
       computeTheAnswerOfLife
     }
 
@@ -51,28 +80,41 @@ class LongRunningService(redis: Redis)(implicit val ec: ExecutionContext) {
                         redisTuple2GenericLongWriter: Writer[(T, Long)]): Future[T] = {
     import System.{currentTimeMillis => time}
 
+    def shouldRecompute(delta: Long, expiryTtl: Long): Boolean =
+      (delta * beta * Math.log(random.nextDouble())).abs >= expiryTtl
+
     val cachedF = redis.get[(T, Long)](key)
-    val pTtlF = redis.pTtl(key)
+    val ttlMsF = redis.pTtl(key)
+
+    def recompute(): Future[T] = {
+      val start = time()
+      recomputeValue.map { value =>
+        val delta = time() - start
+        redis.pSetEX(key, (value, delta), ttl.toMillis)
+        log.debug("Recompute key {} took {}ms", key, delta)
+        value
+      }
+    }
 
     for {
-      cached <- cachedF
-      expiry <- pTtlF
-      value  <- (cached, expiry) match {
-        case (Some((value, delta)), Right(expiry)) if time() - delta * beta * Math.log(random.nextDouble()) < expiry =>
+      cached    <- cachedF
+      expiryTtl <- ttlMsF
+      value     <- (cached, expiryTtl) match {
+        case (Some((value, delta)), Right(expiryTtl)) =>
+          if (shouldRecompute(delta, expiryTtl)) {
+            log.info("Should recompute key {}, remaining ttl {}ms", key, expiryTtl)
+            recompute() // side effect
+          }
+          log.debug("Cached key {}", key)
           Future.successful(value)
+
         case (Some((value, _)), Left(true)) =>
           log.warn("xFetch key {} with no TTL, skipping update", key)
           Future.successful(value)
-        case (value, _) =>
-          if (value.isDefined) log.info("Recomputing key {}", key)
-          else log.warn("Cache miss for key {}", key)
 
-          val start = time()
-          for {
-            value <- recomputeValue
-            delta  = time() - start
-            _     <- redis.pSetEX[(T, Long)](key, (value, delta), ttl.toMillis)
-          } yield value
+        case _ =>
+          log.warn("Cache miss for key {}", key)
+          recompute()
       }
     } yield value
   }

@@ -19,4 +19,5 @@ object App extends App with Route {
     _ <- Http().bindAndHandle(route, "0.0.0.0", 8080)
   } yield ()
 
+  system.registerOnTermination(redisClient.quit())
 }
