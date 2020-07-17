@@ -6,7 +6,6 @@ import akka.actor.{ActorRef, ActorSystem}
 import akka.pattern.ask
 import akka.util.Timeout
 import io.feoktant.akkacache.Cache
-import org.slf4j.{Logger, LoggerFactory}
 import scredis.Redis
 import scredis.serialization.IntReader
 
@@ -18,7 +17,6 @@ class DeepThought(val redis: Redis,
                   system: ActorSystem)(implicit val ec: ExecutionContext)
   extends CachingAlgorithms {
 
-  private val log: Logger = LoggerFactory.getLogger(classOf[DeepThought])
   private val random = Random
   private val ttl = 20.seconds
 

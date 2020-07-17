@@ -18,10 +18,14 @@ class BlockingCacheWorker(recomputeValueF: => Future[Int],
   implicit val ec: ExecutionContext = context.system.dispatcher
 
   override def preStart(): Unit = {
+    log.info("Actor {} started", self.path.name)
     restartTimer(KILL_TIMER, Kill)
     timers.startTimerWithFixedDelay(TTL_TIMER, Expired, ttl)
     recomputeValue()
   }
+
+  override def postStop(): Unit =
+    log.info("Actor {} stopped", self.path.name)
 
   override def receive: Receive = notInitialized
 
@@ -38,6 +42,7 @@ class BlockingCacheWorker(recomputeValueF: => Future[Int],
 
   private def initialized(value: Int): Receive = {
     case GetValue =>
+      log.debug("Cached value for key {}", self.path.name)
       restartTimer(KILL_TIMER, PoisonPill)
       sender() ! value
 
