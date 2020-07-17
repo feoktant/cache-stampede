@@ -30,10 +30,10 @@ trait CachingAlgorithms {
 
         case None    =>
           log.warn("Cache miss for key {}", key)
-          for {
-            value <- recomputeValue
-            _     <- redis.pSetEX(key, value, ttl.toMillis)
-          } yield value
+          recomputeValue.map { value =>
+            redis.pSetEX(key, value, ttl.toMillis) // side effect
+            value
+          }
       }
     } yield value
   }
@@ -73,7 +73,7 @@ trait CachingAlgorithms {
       val start = time()
       recomputeValue.map { value =>
         val delta = time() - start
-        redis.pSetEX(key, (value, delta), ttl.toMillis)
+        redis.pSetEX(key, (value, delta), ttl.toMillis) // side effect
         log.debug("Recompute key {} took {}ms", key, delta)
         value
       }
