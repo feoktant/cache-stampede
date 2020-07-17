@@ -13,7 +13,7 @@ trait Route extends FailFastCirceSupport {
   private val log: Logger = LoggerFactory.getLogger(classOf[Route])
 
   implicit def ec: ExecutionContext
-  def service: LongRunningService
+  def service: DeepThought
 
   val route: AkkaRoute =
     AkkaRoute.seal(

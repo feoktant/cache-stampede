@@ -8,16 +8,17 @@ import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Random
 
-class LongRunningService(redis: Redis)(implicit val ec: ExecutionContext) {
+class DeepThought(redis: Redis)(implicit val ec: ExecutionContext) {
 
-  private val log: Logger = LoggerFactory.getLogger(classOf[LongRunningService])
+  private val log: Logger = LoggerFactory.getLogger(classOf[DeepThought])
   private val random = Random
   private val ttl = 20.seconds
 
   /** @return The Answer to the Ultimate Question of Life, the Universe, and Everything */
   def computeTheAnswerOfLife: Future[Int] =
     Future {
-      Thread.sleep(3.seconds.toMillis)
+      val rand = random.between(0, 3.seconds.toMillis)
+      Thread.sleep(3.seconds.toMillis + rand)
       42
     }
 
@@ -51,7 +52,7 @@ class LongRunningService(redis: Redis)(implicit val ec: ExecutionContext) {
   }
 
   def cachedXFetchedTheAnswerOfLife: Future[Int] =
-    xFetch("xfetch:the_answer_of_life", ttl, beta = 0.5) {
+    xFetch("xfetch:the_answer_of_life", ttl, beta = 0.1) {
       computeTheAnswerOfLife
     }
 
