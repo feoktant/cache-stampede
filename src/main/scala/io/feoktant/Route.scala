@@ -34,7 +34,12 @@ trait Route extends FailFastCirceSupport {
       } ~
       path("akka-blocking") {
         get {
-          complete(service.recomputeBlockingAkka)
+          complete(service.cachedBlockingAkka)
+        }
+      } ~
+      path("akka-redis-blocking") {
+        get {
+          complete(service.cachedBlockingRedisAkka)
         }
       }
     )

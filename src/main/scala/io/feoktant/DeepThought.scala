@@ -20,9 +20,12 @@ class DeepThought(val redis: Redis,
   private val random = Random
   private val ttl = 20.seconds
 
-  val cacheActor: ActorRef = system.actorOf(
-    Cache.props(this.computeTheAnswerOfLife, ttl), "akka-cache-root"
-  )
+  val cacheActor: ActorRef = {
+    implicit val intReader: IntReader.type = IntReader
+    system.actorOf(
+      Cache.props(redis, this.computeTheAnswerOfLife, ttl), "akka-cache-root"
+    )
+  }
 
   /** @return The Answer to the Ultimate Question of Life, the Universe, and Everything */
   def computeTheAnswerOfLife: Future[Int] =
@@ -44,9 +47,14 @@ class DeepThought(val redis: Redis,
       computeTheAnswerOfLife
     }
 
-  def recomputeBlockingAkka: Future[Int] = {
+  def cachedBlockingAkka: Future[Int] = {
     implicit val timeout: Timeout = Timeout(15, TimeUnit.SECONDS)
     ask(cacheActor, Cache.GetValueWithBlock("akka_blocking:the_answer_of_life")).mapTo[Int]
+  }
+
+  def cachedBlockingRedisAkka: Future[Int] = {
+    implicit val timeout: Timeout = Timeout(15, TimeUnit.SECONDS)
+    ask(cacheActor, Cache.GetValueRedisWithBlock("akka_redis_blocking:the_answer_of_life")).mapTo[Int]
   }
 
 }

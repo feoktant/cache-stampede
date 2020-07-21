@@ -8,13 +8,13 @@ import org.slf4j.LoggerFactory
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, Future}
 
-class BlockingCacheWorker(recomputeValueF: => Future[Int],
-                          ttl: FiniteDuration)
+class BlockingCacheWorker[T](recomputeValueF: => Future[T],
+                             ttl: FiniteDuration)
   extends Actor
     with Stash
     with Timers {
 
-  private val log = LoggerFactory.getLogger(classOf[BlockingCacheWorker])
+  private val log = LoggerFactory.getLogger("io.feoktant.akkacache.BlockingCacheWorker")
   implicit val ec: ExecutionContext = context.system.dispatcher
 
   override def preStart(): Unit = {
@@ -30,7 +30,7 @@ class BlockingCacheWorker(recomputeValueF: => Future[Int],
   override def receive: Receive = notInitialized
 
   private def notInitialized: Receive = {
-    case Initialized(v) =>
+    case Initialized(v: T) =>
       context.become(initialized(v))
       unstashAll()
 
@@ -40,7 +40,7 @@ class BlockingCacheWorker(recomputeValueF: => Future[Int],
       stash()
   }
 
-  private def initialized(value: Int): Receive = {
+  private def initialized(value: T): Receive = {
     case GetValue =>
       log.debug("Cached value for key {}", self.path.name)
       restartTimer(KILL_TIMER, PoisonPill)
@@ -53,7 +53,7 @@ class BlockingCacheWorker(recomputeValueF: => Future[Int],
   }
 
   private def recomputeValue(): Unit =
-    recomputeValueF.map(Initialized) pipeTo self
+    recomputeValueF.map(Initialized(_)) pipeTo self
 
   private def restartTimer(key: String, command: Any): Unit = {
     timers.cancel(key)
@@ -67,10 +67,10 @@ object BlockingCacheWorker {
 
   sealed trait Protocol
   case object GetValue extends Protocol
-  private case class Initialized(value: Int) extends Protocol
+  private case class Initialized[T](value: T) extends Protocol
   private case object Expired extends Protocol
 
-  def props(recomputeValueF: => Future[Int], ttl: FiniteDuration): Props =
+  def props[T](recomputeValueF: => Future[T], ttl: FiniteDuration): Props =
     Props(new BlockingCacheWorker(recomputeValueF, ttl))
 
 }
